@@ -1,0 +1,13 @@
+all:
+  hosts:
+    russia:
+      ansible_host: russian.caspian.sol
+      server_name: RU-Server
+      server_location: Russia
+    germany:
+      ansible_host: germany.caspian.sol
+      server_name: DE-Server
+      server_location: Germany
+  vars:
+    ansible_user: root
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519

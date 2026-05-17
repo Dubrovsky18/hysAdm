@@ -1,0 +1,95 @@
+---
+- name: Установка Hysteria2 на серверы для работы с админ-панелью
+  hosts: all
+  vars_files:
+    - vars.yml
+  gather_facts: yes
+
+  tasks:
+    - name: Обновление apt кэша
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Установка зависимостей
+      apt:
+        name:
+          - curl
+          - openssl
+          - ca-certificates
+          - systemd
+        state: present
+
+    - name: Скачивание и установка Hysteria2
+      shell: |
+        bash <(curl -fsSL https://get.hy2.sh/)
+      args:
+        creates: /usr/local/bin/hysteria
+      register: hysteria_install
+
+    - name: Создание директории для сертификатов
+      file:
+        path: /etc/hysteria
+        state: directory
+        mode: '0755'
+
+    - name: Генерация самоподписанного сертификата
+      openssl_certificate:
+        path: /etc/hysteria/cert.pem
+        privatekey_path: /etc/hysteria/key.pem
+        privatekey_type: ECC
+        curve: prime256v1
+        provider: selfsigned
+        cn: "{{ ansible_host }}"
+        subject_alt_name:
+          - "DNS:{{ ansible_host }}"
+          - "IP:{{ ansible_default_ipv4.address | default('127.0.0.1') }}"
+      register: cert_gen
+
+    - name: Копирование конфига Hysteria2
+      template:
+        src: templates/config.yaml.j2
+        dest: /etc/hysteria/config.yaml
+        mode: '0644'
+      notify: restart hysteria
+
+    - name: Включение и запуск systemd сервиса
+      systemd:
+        name: hysteria-server
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Ожидание запуска
+      wait_for:
+        port: "{{ hysteria_port }}"
+        host: "0.0.0.0"
+        timeout: 10
+
+    - name: Информация для добавления в панель
+      debug:
+        msg:
+          - ""
+          - "========================================"
+          - "✅ Сервер {{ server_name }} готов!"
+          - "========================================"
+          - "Добавьте в панель:"
+          - "  Название:  {{ server_name }}"
+          - "  Адрес:     {{ ansible_default_ipv4.address | default(ansible_host) }}"
+          - "  Порт:      {{ hysteria_port }}"
+          - "  API Порт:  9443"
+          - "  Локация:   {{ server_location }}"
+          - ""
+          - "После этого в панели:"
+          - "  1. Создайте пользователя"
+          - "  2. Назначьте ему ключ на этот сервер"
+          - "  3. Настройте доменные правила (например ru -> RU-Server)"
+          - "  4. Сгенерируйте подписку для пользователя"
+          - "========================================"
+
+  handlers:
+    - name: restart hysteria
+      systemd:
+        name: hysteria-server
+        state: restarted
+        daemon_reload: yes

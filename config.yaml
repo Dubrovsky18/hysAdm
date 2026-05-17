@@ -12,4 +12,4 @@ jwt:
 panel:
   admin_username: "admin"
   admin_password: "admin123"
-  domain: "example.com"
+  domain: "myduma.ru"

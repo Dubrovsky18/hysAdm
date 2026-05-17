@@ -1,0 +1,12 @@
+# Панель
+panel_internal_url: "http://russian.caspian.sol:8080"
+panel_external_url: "https://myduma.ru"
+
+# Hysteria2
+hysteria_port: 443
+hysteria_bandwidth_up: "100 mbps"
+hysteria_bandwidth_down: "500 mbps"
+
+# Сертификаты (самоподписанные на ip/хост, для production заменить на Let's Encrypt)
+cert_country: "RU"
+cert_org: "Caspian Networks"

@@ -1,0 +1,20 @@
+listen: :{{ hysteria_port }}
+protocol: hysteria2
+cert: /etc/hysteria/cert.pem
+key: /etc/hysteria/key.pem
+
+auth:
+  type: http
+  url: "{{ panel_internal_url }}/api/sub/{uuid}"
+  method: GET
+
+bandwidth:
+  up: "{{ hysteria_bandwidth_up }}"
+  down: "{{ hysteria_bandwidth_down }}"
+
+quic:
+  initStreamReceiveWindow: 8388608
+  maxStreamReceiveWindow: 8388608
+  initConnReceiveWindow: 20971520
+  maxConnReceiveWindow: 20971520
+  maxIdleTimeout: 30s

@@ -9,6 +9,7 @@ import (
 	"hysteria2-panel/internal/middleware"
 	"hysteria2-panel/internal/models"
 	"hysteria2-panel/internal/services"
+	"hysteria2-panel/internal/subscription"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -334,6 +335,42 @@ func (h *Handler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 	uuid := r.PathValue("uuid")
 	if uuid == "" {
 		jsonError(w, "invalid uuid", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.userService.GetByUUID(r.Context(), uuid)
+	if err != nil {
+		jsonError(w, "subscription not found", http.StatusNotFound)
+		return
+	}
+
+	domainRules, err := h.domainService.GetDomainsForUserServers(r.Context(), user.ID)
+	if err != nil {
+		jsonError(w, "subscription not found", http.StatusNotFound)
+		return
+	}
+
+	if len(domainRules) > 0 {
+		proxies, err := h.subscriptionService.GetUserServerDetails(r.Context(), user.ID)
+		if err != nil {
+			jsonError(w, "subscription not found", http.StatusNotFound)
+			return
+		}
+
+		if len(proxies) == 0 {
+			jsonError(w, "no servers assigned", http.StatusNotFound)
+			return
+		}
+
+		clashCfg, err := subscription.GenerateClashConfig(proxies, domainRules)
+		if err != nil {
+			jsonError(w, "failed to generate config", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+		w.Header().Set("Subscription-Userinfo", "upload=0; download=0; total=107374182400; expire=0")
+		w.Write([]byte(clashCfg))
 		return
 	}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"hysteria2-panel/internal/models"
+	"hysteria2-panel/internal/subscription"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -198,6 +199,64 @@ func (s *SubscriptionService) GenerateSubscription(ctx context.Context, userID i
 	_, err = s.pool.Exec(ctx, `UPDATE users SET subscription_url = $1 WHERE id = $2`, subURL, userID)
 
 	return &models.Subscription{Link: subURL}, err
+}
+
+func (s *SubscriptionService) GetUserServerDetails(ctx context.Context, userID int64) ([]subscription.ProxyInfo, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT s.name, s.address, s.port, us.key
+		 FROM user_servers us
+		 JOIN servers s ON us.server_id = s.id
+		 WHERE us.user_id = $1 AND us.is_active = true AND s.is_active = true`,
+		userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	proxies := make([]subscription.ProxyInfo, 0)
+	for rows.Next() {
+		var name, address, key string
+		var port int
+		if err := rows.Scan(&name, &address, &port, &key); err != nil {
+			return nil, err
+		}
+		proxies = append(proxies, subscription.ProxyInfo{
+			Name:     name,
+			Server:   address,
+			Port:     port,
+			Password: key,
+			SNI:      s.panelDomain,
+			Remark:   fmt.Sprintf("%s-%s", s.panelDomain, name),
+		})
+	}
+	return proxies, nil
+}
+
+func (s *DomainService) GetDomainsForUserServers(ctx context.Context, userID int64) ([]subscription.DomainRule, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT d.domain, s.name as server_name
+		 FROM domains d
+		 JOIN servers s ON d.server_id = s.id
+		 JOIN user_servers us ON us.server_id = s.id AND us.user_id = $1
+		 WHERE d.is_active = true AND s.is_active = true AND us.is_active = true`,
+		userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	rules := make([]subscription.DomainRule, 0)
+	for rows.Next() {
+		var domain, serverName string
+		if err := rows.Scan(&domain, &serverName); err != nil {
+			return nil, err
+		}
+		rules = append(rules, subscription.DomainRule{
+			Domain:     domain,
+			ServerName: serverName,
+		})
+	}
+	return rules, nil
 }
 
 func (s *SubscriptionService) GetSubscriptionLinks(ctx context.Context, userUUID string) ([]string, error) {
